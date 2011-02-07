@@ -6,8 +6,13 @@ import dispatch.json._
 import JsHttp._
 import dispatch.twitter.Status
 import org.joda.time.DateTime
+import actors.Actor
 
-class Atom2TwitterSync(atomFeedUri: String, twitterHandle: String, twitterPass: String) {
+object Atom2TwitterSync {
+  object Check
+  object Shutdown
+}
+class Atom2TwitterSync(atomFeedUri: String, twitterHandle: String, twitterPass: String) extends Actor {
   val http = new Http()
 
   val created_at = 'created_at ? date
@@ -27,13 +32,24 @@ class Atom2TwitterSync(atomFeedUri: String, twitterHandle: String, twitterPass: 
 
   println("Last tweet: " + lastTweet)
 
-  def update() {
-    http(atomFeedUri <> {
-      elem =>
-        for {entry <- elem \\ "entry"
-             category <- entry \\ "category"
-             term <- category \ "@term" if term == "Twitter"} println(entry)
-    })
+  override def act = {
+    loop {
+      react {
+        case Atom2TwitterSync.Check =>
+          println("Updating...")
+          http(atomFeedUri <> {
+            elem =>
+              for {entry <- elem \\ "entry"
+                   category <- entry \\ "category"
+                   term <- category.attribute("term") if term.text.trim.toLowerCase == "twitter"
+                   published <- (entry \\ "published").map(p => AtomDateParse(p.text)) if published.isAfter(lastTweet)} {
+                println("Tweet: " + entry + " (" + term + ")")
+              }
+          })
+        case Atom2TwitterSync.Shutdown =>
+          exit
+      }
+    }
   }
-
+  start
 }
