@@ -1,0 +1,3 @@
+package no.javabin.atom2twitterpublish
+
+object TwitterDateParseSpec
