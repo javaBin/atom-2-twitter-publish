@@ -7,12 +7,13 @@ import JsHttp._
 import dispatch.twitter.Status
 import org.joda.time.DateTime
 import actors.Actor
+import dispatch.oauth.{Token, Consumer}
 
 object Atom2TwitterSync {
   object Check
   object Shutdown
 }
-class Atom2TwitterSync(atomFeedUri: String, twitterHandle: String, twitterPass: String) extends Actor {
+class Atom2TwitterSync(atomFeedUri: String, consumerKey: String, consumerSecret: String, accessToken: String, accessSecret: String, twitterHandle: String) extends Actor {
   val http = new Http()
 
   val created_at = 'created_at ? date
@@ -40,10 +41,15 @@ class Atom2TwitterSync(atomFeedUri: String, twitterHandle: String, twitterPass: 
           http(atomFeedUri <> {
             elem =>
               for {entry <- elem \\ "entry"
-                   category <- entry \\ "category"
+                   category <- entry \ "category"
+                   text <- List((entry \ "title").text)
                    term <- category.attribute("term") if term.text.trim.toLowerCase == "twitter"
-                   published <- (entry \\ "published").map(p => AtomDateParse(p.text)) if published.isAfter(lastTweet)} {
-                println("Tweet: " + entry + " (" + term + ")")
+                   published <- (entry \ "published").map(p => AtomDateParse(p.text))
+                   if published.isAfter(lastTweet) && published.isBeforeNow} {
+                val consumer = Consumer(consumerKey, consumerSecret)
+                val access = Token(accessToken, accessSecret)
+                http(Status.update(text, consumer, access) >- {println(_)})
+                println("Tweet (" + term + "): " + text)
               }
           })
         case Atom2TwitterSync.Shutdown =>
