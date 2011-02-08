@@ -5,7 +5,8 @@ object RetrieveAndPublish {
     args match {
       case Array(atomFeedUri, twitterSource, consumerKey, consumerSecret, accessToken, accessSecret, twitterHandle) =>
         var it = new Atom2TwitterSync(
-          atomFeedUri, twitterSource, consumerKey, consumerSecret, accessToken, accessSecret, twitterHandle)
+          atomFeedUri, twitterSource, consumerKey, consumerSecret, accessToken, accessSecret, twitterHandle,
+          (msg, exc) => println(msg + ", " + exc), (msg) => println(msg))
         it ! Atom2TwitterSync.Check
         it ! Atom2TwitterSync.Shutdown
       case _ =>
