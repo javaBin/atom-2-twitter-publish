@@ -54,13 +54,15 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
         }
       } catch {
         case exception: Exception =>
+          // Eat exception or the actor will die
           errorLogger("Error in atom2twitter sync", Some(exception))
-          throw exception
       }
     }
   }
 
-  def tweet(text: String) = http(Status.update(text, consumer, access) >- { reply => infoLogger(reply.toString) })
+  def tweet(text: String) = {
+    http(Status.update(Shortener(text, 140, "..."), consumer, access) >- { reply => infoLogger(reply.toString) })
+  }
 
   def handleAtomDocument(doc: Elem): Unit = {
     val stati = for {entry <- doc \\ "entry"
