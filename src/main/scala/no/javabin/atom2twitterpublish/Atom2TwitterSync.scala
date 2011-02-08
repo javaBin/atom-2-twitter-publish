@@ -34,21 +34,19 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
     def compare(dt1: DateTime, dt2: DateTime) = dt1.compareTo(dt2)
   }
 
-  var lastTweet: DateTime = (for {
+  def findLastTweet: DateTime = (for {
     item <- http(Status(twitterHandle).timeline)
     source <- List(source(item)) if source.contains(twitterSource)
   } yield {created_at(item)}).sorted.lastOption.getOrElse(new DateTime(0L))
-  infoLogger("Last tweet: " + lastTweet)
 
   override def act = {
     loop{
       try {
         react{
           case Atom2TwitterSync.Check =>
-            infoLogger("Updating...")
-            val now = new DateTime
-            http(atomFeedUri <> { elem => handleAtomDocument(elem) })
-            lastTweet = now;
+            var lastTweet = findLastTweet
+            infoLogger("Updating... last tweet: " + lastTweet)
+            http(atomFeedUri <> { elem => handleAtomDocument(elem, lastTweet) })
           case Atom2TwitterSync.Shutdown =>
             exit
         }
@@ -64,7 +62,7 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
     http(Status.update(Shortener(text, 140, "..."), consumer, access) >- { reply => infoLogger(reply.toString) })
   }
 
-  def handleAtomDocument(doc: Elem): Unit = {
+  def handleAtomDocument(doc: Elem, lastTweet: DateTime): Unit = {
     val stati = for {entry <- doc \\ "entry"
                      category <- entry \ "category"
                      text <- Seq((entry \ "title").text)
