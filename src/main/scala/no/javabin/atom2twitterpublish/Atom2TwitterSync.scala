@@ -13,10 +13,11 @@ object Atom2TwitterSync {
   object Check
   object Shutdown
 }
-class Atom2TwitterSync(atomFeedUri: String, consumerKey: String, consumerSecret: String, accessToken: String, accessSecret: String, twitterHandle: String) extends Actor {
+class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: String, consumerSecret: String, accessToken: String, accessSecret: String, twitterHandle: String) extends Actor {
   val http = new Http()
 
   val created_at = 'created_at ? date
+  val source = 'source ? str
   object date extends Extract[DateTime] {
     def unapply(js: JsValue) = js match {
       case JsString(v) => Some(TwitterDateParse(v))
@@ -29,7 +30,8 @@ class Atom2TwitterSync(atomFeedUri: String, consumerKey: String, consumerSecret:
 
   var lastTweet: DateTime = (for {
     item <- http(Status(twitterHandle).timeline)
-  } yield created_at(item)).sorted.lastOption.getOrElse(new DateTime(0L))
+    source <- List(source(item)) if source.contains(twitterSource)
+  } yield {created_at(item)}).sorted.lastOption.getOrElse(new DateTime(0L))
 
   println("Last tweet: " + lastTweet)
 
@@ -38,6 +40,7 @@ class Atom2TwitterSync(atomFeedUri: String, consumerKey: String, consumerSecret:
       react {
         case Atom2TwitterSync.Check =>
           println("Updating...")
+          val now = new DateTime
           http(atomFeedUri <> {
             elem =>
               for {entry <- elem \\ "entry"
@@ -52,6 +55,7 @@ class Atom2TwitterSync(atomFeedUri: String, consumerKey: String, consumerSecret:
                 println("Tweet (" + term + "): " + text)
               }
           })
+          lastTweet = now;
         case Atom2TwitterSync.Shutdown =>
           exit
       }
