@@ -8,6 +8,7 @@ import dispatch.twitter.Status
 import org.joda.time.DateTime
 import actors.Actor
 import dispatch.oauth.{Token, Consumer}
+import xml.Elem
 
 object Atom2TwitterSync {
   object Check
@@ -18,6 +19,8 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
                        errorLogger: (String, Option[Throwable]) => Unit,
                        infoLogger: (String) => Unit) extends Actor {
   val http = new Http()
+  val consumer = Consumer(consumerKey, consumerSecret)
+  val access = Token(accessToken, accessSecret)
 
   val created_at = 'created_at ? date
   val source = 'source ? str
@@ -35,7 +38,6 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
     item <- http(Status(twitterHandle).timeline)
     source <- List(source(item)) if source.contains(twitterSource)
   } yield {created_at(item)}).sorted.lastOption.getOrElse(new DateTime(0L))
-
   infoLogger("Last tweet: " + lastTweet)
 
   override def act = {
@@ -45,22 +47,7 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
           case Atom2TwitterSync.Check =>
             infoLogger("Updating...")
             val now = new DateTime
-            http(atomFeedUri <> {
-              elem =>
-                for {entry <- elem \\ "entry"
-                     category <- entry \ "category"
-                     text <- List((entry \ "title").text)
-                     term <- category.attribute("term") if term.text.trim.toLowerCase == "twitter"
-                     published <- (entry \ "published").map(p => AtomDateParse(p.text))
-                     if published.isAfter(lastTweet) && published.isBeforeNow} {
-                  val consumer = Consumer(consumerKey, consumerSecret)
-                  val access = Token(accessToken, accessSecret)
-                  http(Status.update(text, consumer, access) >- {
-                    reply => infoLogger(reply.toString)
-                  })
-                  infoLogger("Twatted: " + text)
-                }
-            })
+            http(atomFeedUri <> { elem => handleAtomDocument(elem) })
             lastTweet = now;
           case Atom2TwitterSync.Shutdown =>
             exit
@@ -71,6 +58,19 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
           throw exception
       }
     }
+  }
+
+  def tweet(text: String) = http(Status.update(text, consumer, access) >- { reply => infoLogger(reply.toString) })
+
+  def handleAtomDocument(doc: Elem): Unit = {
+    val stati = for {entry <- doc \\ "entry"
+                     category <- entry \ "category"
+                     text <- Seq((entry \ "title").text)
+                     term <- category.attribute("term").toSeq if term.text.trim.toLowerCase == "twitter"
+                     published <- (entry \ "published").map(p => AtomDateParse(p.text)).toSeq
+                     if published.isAfter(lastTweet) && published.isBeforeNow
+    } yield (published, text)
+    stati.sorted.foreach{ case (_, text) => tweet(text) }
   }
 
   start
