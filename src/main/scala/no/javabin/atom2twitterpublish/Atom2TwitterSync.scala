@@ -40,20 +40,20 @@ class Atom2TwitterSync(atomFeedUri: String, twitterSource: String, consumerKey: 
   } yield {created_at(item)}).sorted.lastOption.getOrElse(new DateTime(0L))
 
   override def act = {
-    loop{
-      try {
-        react{
-          case Atom2TwitterSync.Check =>
-            var lastTweet = findLastTweet
+    loop {
+      react {
+        case Atom2TwitterSync.Check =>
+          try {
+            val lastTweet = findLastTweet
             infoLogger("Updating... last tweet: " + lastTweet)
             http(atomFeedUri <> { elem => handleAtomDocument(elem, lastTweet) })
-          case Atom2TwitterSync.Shutdown =>
-            exit
-        }
-      } catch {
-        case exception: Exception =>
-          // Eat exception or the actor will die
-          errorLogger("Error in atom2twitter sync", Some(exception))
+          } catch {
+            case exception: Exception =>
+              // Eat exception or the actor will die
+              errorLogger("Error in atom2twitter sync", Some(exception))
+          }
+        case Atom2TwitterSync.Shutdown =>
+          exit
       }
     }
   }
