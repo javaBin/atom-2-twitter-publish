@@ -1,13 +1,30 @@
 import sbt._
-import Keys._
+import sbt.Keys._
+import sbtrelease.Release._
+import sbtrelease.ReleasePart
+import sbtrelease.ReleaseKeys._
 
 object Atom2TwitterPublish extends Build {
 
-  lazy val buildSettings = Defaults.defaultSettings ++ Seq(
-    organization := "no.arktekk.atom-client",
-    version := "1.0-SNAPSHOT",
+  lazy val buildSettings = Defaults.defaultSettings ++ releaseSettings ++ Seq(
+    organization := "no.javabin",
     scalaVersion := "2.9.1",
-    crossScalaVersions := Seq("2.9.1") // Seq("2.9.0", "2.9.1"),
+    releaseProcess <<= thisProjectRef apply { ref =>
+      import sbtrelease.ReleaseStateTransformations._
+      Seq[ReleasePart](
+        initialGitChecks,
+        checkSnapshotDependencies,
+        inquireVersions,
+        runTest,
+        setReleaseVersion,
+        commitReleaseVersion,
+        tagRelease,
+      // Enable when we're deploying to Sonatype
+//        releaseTask(publish in Global in ref),
+        setNextVersion,
+        commitNextVersion
+      )
+    }
   )
 
   val dispatchVersion = "0.7.8"
@@ -19,7 +36,7 @@ object Atom2TwitterPublish extends Build {
   val specs = "org.specs2" %% "specs2" % "1.6.1" % "test" withSources ()
 
   lazy val root = Project(
-    id = "atom-2-twitter-publish",
+    id = "atom2twitterpublisher",
     base = file("."),
     settings = buildSettings ++ Seq(
       description := "Atom 2 Twitter Publish",
