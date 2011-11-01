@@ -1,6 +1,6 @@
 package no.javabin.atom2twitterpublish
 
-import org.specs.Specification
+import org.specs2.mutable._
 
 class TwitterDateTimeParseSpec extends Specification with DateTimeTuplifier {
 
